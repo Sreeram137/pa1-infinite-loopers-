@@ -1,6 +1,6 @@
 #include "threads/thread.h"
 #include <debug.h>
-#include <stddef.h> 
+#include <stddef.h>
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
@@ -70,6 +70,13 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+
+/* Function to compare thread priorities for sorting */
+bool thread_priority_cmp(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+    struct thread *t1 = list_entry(a, struct thread, elem);
+    struct thread *t2 = list_entry(b, struct thread, elem);
+    return t1->priority > t2->priority;
+}
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -237,7 +244,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered(&ready_list, &t->elem, thread_priority_cmp, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -335,7 +342,16 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+  struct thread *cur = thread_current();
+  cur->priority = new_priority;
+  
+  /* Yield if a higher-priority thread is ready to run */
+  if (!list_empty(&ready_list)) {
+    struct thread *highest = list_entry(list_front(&ready_list), struct thread, elem);
+    if (highest->priority > cur->priority) {
+      thread_yield();
+    }
+  }
 }
 
 /* Returns the current thread's priority. */
@@ -519,66 +535,4 @@ thread_schedule_tail (struct thread *prev)
   
   ASSERT (intr_get_level () == INTR_OFF);
 
-  /* Mark us as running. */
-  cur->status = THREAD_RUNNING;
-
-  /* Start new time slice. */
-  thread_ticks = 0;
-
-#ifdef USERPROG
-  /* Activate the new address space. */
-  process_activate ();
-#endif
-
-  /* If the thread we switched from is dying, destroy its struct
-     thread.  This must happen late so that thread_exit() doesn't
-     pull out the rug under itself.  (We don't free
-     initial_thread because its memory was not obtained via
-     palloc().) */
-  if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread) 
-    {
-      ASSERT (prev != cur);
-      palloc_free_page (prev);
-    }
-}
-
-/* Schedules a new process.  At entry, interrupts must be off and
-   the running process's state must have been changed from
-   running to some other state.  This function finds another
-   thread to run and switches to it.
-
-   It's not safe to call printf() until thread_schedule_tail()
-   has completed. */
-static void
-schedule (void) 
-{
-  struct thread *cur = running_thread ();
-  struct thread *next = next_thread_to_run ();
-  struct thread *prev = NULL;
-
-  ASSERT (intr_get_level () == INTR_OFF);
-  ASSERT (cur->status != THREAD_RUNNING);
-  ASSERT (is_thread (next));
-
-  if (cur != next)
-    prev = switch_threads (cur, next);
-  thread_schedule_tail (prev);
-}
-
-/* Returns a tid to use for a new thread. */
-static tid_t
-allocate_tid (void) 
-{
-  static tid_t next_tid = 1;
-  tid_t tid;
-
-  lock_acquire (&tid_lock);
-  tid = next_tid++;
-  lock_release (&tid_lock);
-
-  return tid;
-}
-
-/* Offset of `stack' member within `struct thread'.
-   Used by switch.S, which can't figure it out on its own. */
-uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+  /* Mark us
