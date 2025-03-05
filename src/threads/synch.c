@@ -1,3 +1,31 @@
+/* This file is derived from source code for the Nachos
+   instructional operating system.  The Nachos copyright notice
+   is reproduced in full below. */
+
+/* Copyright (c) 1992-1996 The Regents of the University of California.
+   All rights reserved.
+
+   Permission to use, copy, modify, and distribute this software
+   and its documentation for any purpose, without fee, and
+   without written agreement is hereby granted, provided that the
+   above copyright notice and the following two paragraphs appear
+   in all copies of this software.
+
+   IN NO EVENT SHALL THE UNIVERSITY OF CALIFORNIA BE LIABLE TO
+   ANY PARTY FOR DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR
+   CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OF THIS SOFTWARE
+   AND ITS DOCUMENTATION, EVEN IF THE UNIVERSITY OF CALIFORNIA
+   HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+   THE UNIVERSITY OF CALIFORNIA SPECIFICALLY DISCLAIMS ANY
+   WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+   WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+   PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS ON AN "AS IS"
+   BASIS, AND THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATION TO
+   PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR
+   MODIFICATIONS.
+*/
+
 #include "threads/synch.h"
 #include <stdio.h>
 #include <string.h>
@@ -128,7 +156,7 @@ sema_test_helper (void *sema_)
       sema_up (&sema[1]);
     }
 }
-
+
 /* Initializes LOCK.  A lock can be held by at most a single
    thread at any given time.  Our locks are not "recursive", that
    is, it is an error for the thread currently holding a lock to
@@ -164,30 +192,12 @@ lock_init (struct lock *lock)
 void
 lock_acquire (struct lock *lock)
 {
-  struct thread *current_thread = thread_current ();
-  struct thread *holder;
-
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-  if (lock->holder != NULL) 
-  {
-    current_thread->waiting_lock = lock;
-    holder = lock->holder;
-    
-    // Donate priority if the holder has a lower priority
-    if (current_thread->priority > holder->priority) 
-    {
-      holder->priority = current_thread->priority;
-      list_insert_ordered (&holder->donations, &current_thread->donation_elem, 
-                           (list_less_func *) &thread_compare_priority, NULL);
-    }
-  }
-
   sema_down (&lock->semaphore);
-  lock->holder = current_thread;
-  current_thread->waiting_lock = NULL;
+  lock->holder = thread_current ();
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -218,23 +228,13 @@ lock_try_acquire (struct lock *lock)
 void
 lock_release (struct lock *lock) 
 {
-  struct thread *current_thread = thread_current ();
-
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
   lock->holder = NULL;
-  
-  // Restore the original priority
-  if (!list_empty (&current_thread->donations)) 
-  {
-    current_thread->priority = list_entry (list_front (&current_thread->donations), 
-                                          struct thread, donation_elem)->priority;
-    list_remove (list_front (&current_thread->donations));
-  }
-  
   sema_up (&lock->semaphore);
 }
+
 /* Returns true if the current thread holds LOCK, false
    otherwise.  (Note that testing whether some other thread holds
    a lock would be racy.) */
@@ -245,7 +245,7 @@ lock_held_by_current_thread (const struct lock *lock)
 
   return lock->holder == thread_current ();
 }
-
+
 /* One semaphore in a list. */
 struct semaphore_elem 
   {
