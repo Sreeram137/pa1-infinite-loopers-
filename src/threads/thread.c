@@ -84,16 +84,6 @@ static tid_t allocate_tid (void);
 
    It is not safe to call thread_current() until this function
    finishes. */
-
-/* Function prototypes */
-bool thread_priority_compare(const struct list_elem *, const struct list_elem *, void *aux UNUSED);
-void check_preemption(void);
-/* Comparison function for thread priority. */
-/* Comparison function for thread priority. */
-bool thread_priority_compare (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
-  return list_entry(a, struct thread, elem)->priority > list_entry(b, struct thread, elem)->priority;
-}
-
 void
 thread_init (void) 
 {
@@ -210,7 +200,7 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-
+  thread_yield();
   return tid;
 }
 
@@ -238,26 +228,18 @@ thread_block (void)
    be important: if the caller had disabled interrupts itself,
    it may expect that it can atomically unblock a thread and
    update other data. */
-
-void thread_unblock (struct thread *t) {
+void
+thread_unblock (struct thread *t) 
+{
   enum intr_level old_level;
+
   ASSERT (is_thread (t));
+
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_insert_ordered(&ready_list, &t->elem, thread_priority_compare, NULL);
+  list_insert_ordered (&ready_list, &t->elem, compare_priority, 0);
   t->status = THREAD_READY;
   intr_set_level (old_level);
-}
-
-
-/* Checks for preemption based on priority. */
-void check_preemption (void) {
-  if (!list_empty(&ready_list)) {
-    struct thread *highest = list_entry(list_front(&ready_list), struct thread, elem);
-    if (highest->priority > thread_current()->priority) {
-      thread_yield();
-    }
-  }
 }
 
 /* Returns the name of the running thread. */
@@ -326,7 +308,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    list_insert_ordered (&ready_list, &cur->elem, compare_priority, 0);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -350,10 +332,11 @@ thread_foreach (thread_action_func *func, void *aux)
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
-/* Updated thread_set_priority to handle preemption. */
-void thread_set_priority (int new_priority) {
-  thread_current()->priority = new_priority;
-  check_preemption();
+void
+thread_set_priority (int new_priority) 
+{
+  thread_current ()->priority = new_priority;
+  thread_yield();
 }
 
 /* Returns the current thread's priority. */
@@ -393,7 +376,8 @@ thread_get_recent_cpu (void)
   /* Not yet implemented. */
   return 0;
 }
-
+
+
 /* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by
@@ -442,7 +426,8 @@ kernel_thread (thread_func *function, void *aux)
   function (aux);       /* Execute the thread function. */
   thread_exit ();       /* If function() returns, kill the thread. */
 }
-
+
+
 /* Returns the running thread. */
 struct thread *
 running_thread (void) 
@@ -596,7 +581,18 @@ allocate_tid (void)
 
   return tid;
 }
-
+
+
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+
+bool compare_priority(struct list_elem *l1, struct list_elem *l2,void *aux)
+{
+  struct thread *t1 = list_entry(l1,struct thread,elem);
+  struct thread *t2 = list_entry(l2,struct thread,elem);
+  if( t1->priority > t2->priority)
+    return true;
+  return false;
+}
