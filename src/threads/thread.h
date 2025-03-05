@@ -5,6 +5,9 @@
 #include <list.h>
 #include <stdint.h>
 
+// In thread.h
+bool thread_compare_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+
 /* States in a thread's life cycle. */
 enum thread_status
   {
