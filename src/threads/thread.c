@@ -246,6 +246,7 @@ void thread_unblock (struct thread *t) {
   ASSERT (t->status == THREAD_BLOCKED);
   list_insert_ordered(&ready_list, &t->elem, thread_priority_compare, NULL);
   t->status = THREAD_READY;
+  check_preemption();
   intr_set_level (old_level);
 }
 
@@ -259,6 +260,7 @@ void check_preemption (void) {
     }
   }
 }
+
 
 /* Returns the name of the running thread. */
 const char *
@@ -352,8 +354,12 @@ thread_foreach (thread_action_func *func, void *aux)
 /* Sets the current thread's priority to NEW_PRIORITY. */
 /* Updated thread_set_priority to handle preemption. */
 void thread_set_priority (int new_priority) {
+  enum intr_level old_level = intr_disable();
   thread_current()->priority = new_priority;
+  list_remove(&thread_current()->elem);
+  list_insert_ordered(&ready_list, &thread_current()->elem, thread_priority_compare, NULL);
   check_preemption();
+  intr_set_level(old_level);
 }
 
 /* Returns the current thread's priority. */
