@@ -11,9 +11,10 @@
 #mlfqs-load-1 mlfqs-load-60 mlfqs-load-avg mlfqs-recent-1 mlfqs-fair-2	\
 #mlfqs-fair-20 mlfqs-nice-2 mlfqs-nice-10 mlfqs-block)
 
-# Test names. (PA1 Phase 1)
+# Test names. (PA1 Phase 2)
 tests/threads_TESTS = $(addprefix tests/threads/,priority-change	\
-priority-fifo priority-preempt)
+priority-fifo priority-preempt alarm-single alarm-multiple	\
+alarm-simultaneous alarm-priority alarm-zero alarm-negative)
 
 # Sources for tests.
 tests/threads_SRC  = tests/threads/tests.c
