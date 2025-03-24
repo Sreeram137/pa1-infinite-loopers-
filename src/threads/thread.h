@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "fixedpoint.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -25,34 +26,11 @@ typedef int tid_t;
 #define PRI_MAX 63                      /* Highest priority. */
 
 /* A kernel thread or user process.
-
    Each thread structure is stored in its own 4 kB page.  The
    thread structure itself sits at the very bottom of the page
    (at offset 0).  The rest of the page is reserved for the
-   thread's kernel stack, which grows downward from the top of
-   the page (at offset 4 kB).  Here's an illustration:
-
-        4 kB +---------------------------------+
-             |          kernel stack           |
-             |                |                |
-             |                |                |
-             |                V                |
-             |         grows downward          |
-             |                                 |
-             |                                 |
-             |                                 |
-             |                                 |
-             |                                 |
-             |                                 |
-             |                                 |
-             |                                 |
-             +---------------------------------+
-             |              magic              |
-             |                :                |
-             |                :                |
-             |               name              |
-             |              status             |
-        0 kB +---------------------------------+
+   thread's kernel stack, which grows downward from the end of
+   the page (at offset 4 kB). 
 
    The upshot of this is twofold:
 
@@ -74,12 +52,6 @@ typedef int tid_t;
    the `magic' member of the running thread's `struct thread' is
    set to THREAD_MAGIC.  Stack overflow will normally change this
    value, triggering the assertion. */
-/* The `elem' member has a dual purpose.  It can be an element in
-   the run queue (thread.c), or it can be an element in a
-   semaphore wait list (synch.c).  It can be used these two ways
-   only because they are mutually exclusive: only a thread in the
-   ready state is on the run queue, whereas only a thread in the
-   blocked state is on a semaphore wait list. */
 struct thread
   {
     /* Owned by thread.c. */
@@ -88,8 +60,9 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
+    int base_priority;                  /* Base priority before donation. */
     struct list_elem allelem;           /* List element for all threads list. */
-int64_t wake_up_time;
+    struct list locks;                  /* List of locks held by the thread. */
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
@@ -101,6 +74,10 @@ int64_t wake_up_time;
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
+
+    /* For MLFQS */
+    int nice;                           /* Nice value. */
+    fixed_point_t recent_cpu;           /* Recent CPU value. */
   };
 
 /* If false (default), use round-robin scheduler.
@@ -131,12 +108,30 @@ void thread_yield (void);
 typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
 
-int thread_get_priority (void);
+/* Sets the current thread's priority to NEW_PRIORITY. */
 void thread_set_priority (int);
+int thread_get_priority (void);
 
-int thread_get_nice (void);
+/* Sets the current thread's nice value to NICE. */
 void thread_set_nice (int);
-int thread_get_recent_cpu (void);
+int thread_get_nice (void);
+
+/* Returns 100 times the system load average. */
 int thread_get_load_avg (void);
+
+/* Returns 100 times the current thread's recent_cpu value. */
+int thread_get_recent_cpu (void);
+
+/* Priority donation functions */
+void donate_priority(struct thread *t, int new_priority);
+void reset_priority(struct thread *t);
+void update_priority(struct thread *t);
+
+/* MLFQS functions */
+void mlfqs_update_priority(struct thread *t);
+void mlfqs_update_recent_cpu(struct thread *t);
+void mlfqs_update_load_avg(void);
+void mlfqs_increment_recent_cpu(void);
+void mlfqs_recalculate(void);
 
 #endif /* threads/thread.h */
