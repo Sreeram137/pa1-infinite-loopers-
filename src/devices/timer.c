@@ -7,12 +7,9 @@
 #include "threads/interrupt.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
-
-/* Change 1*/
-static struct list sleep_list;
-static struct lock sleep_list_lock;
   
 /* See [8254] for hardware details of the 8254 timer chip. */
+    static struct list sleeping_list; // Global list of sleeping threads
 
 #if TIMER_FREQ < 19
 #error 8254 timer requires TIMER_FREQ >= 19
@@ -36,10 +33,11 @@ static void real_time_delay (int64_t num, int32_t denom);
 
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
+
 void timer_init(void) {
-    // Existing initialization
-    list_init(&sleep_list);
-    lock_init(&sleep_list_lock);
+            pit_configure_channel (0, 2, TIMER_FREQ);
+        intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+                  list_init(&sleeping_list); // this will help in intializing the sleeping list
 }
 
 
@@ -90,31 +88,19 @@ timer_elapsed (int64_t then)
 
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
+bool wakeup_time_comparator(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+
 void timer_sleep(int64_t ticks) {
-    if (ticks <= 0) return; // No need to sleep for non-positive ticks.
-
-    enum intr_level old_level = intr_disable(); // Disable interrupts
-    struct thread *cur = thread_current();
-    cur->wake_up_time = timer_ticks() + ticks;
-
-    /* Insert into sleep list in order of wake-up time */
-    lock_acquire(&sleep_list_lock);
-    struct list_elem *e;
-    for (e = list_begin(&sleep_list); e != list_end(&sleep_list); e = list_next(e)) {
-        struct thread *t = list_entry(e, struct thread, elem);
-        if (cur->wake_up_time < t->wake_up_time) {
-            list_insert(e, &cur->elem);
-            break;
-        }
-    }
-    if (e == list_end(&sleep_list)) {
-        list_push_back(&sleep_list, &cur->elem);
-    }
-    lock_release(&sleep_list_lock);
-
-    thread_block();  // Block the thread
-    intr_set_level(old_level); // Restore interrupts
+    if (ticks <= 0) return; // will be ignoringt the tickss 
+                                                      int64_t wake_time = timer_ticks() + ticks; //nOw giving the code to calculate wakeup time
+    
+                enum intr_level old_level = intr_disable(); // now will be Disableing the interrupts
+                                thread_current()->wakeup_time = wake_time; // now the next will be store also wake up time
+             list_insert_ordered(&sleeping_list, &thread_current()->elem, wakeup_time_comparator, NULL); // future inserting into the sleepp link
+                            thread_block(); // code too the blocking thread
+       intr_set_level(old_level); // this will help inthe restpring the interrupts
 }
+
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
    turned on. */
@@ -188,19 +174,13 @@ timer_print_stats (void)
 
 /* Timer interrupt handler. */
 void timer_interrupt(struct intr_frame *args UNUSED) {
-    ticks++;
-    thread_tick();
-
-    /* Check if any sleeping thread needs to be woken up */
-    while (!list_empty(&sleep_list)) {
-        struct thread *t = list_entry(list_front(&sleep_list), struct thread, elem);
-        if (t->wake_up_time > ticks) {
-            break; // No thread needs waking up
-        }
-
-        /* Remove from sleep list and unblock */
-        list_pop_front(&sleep_list);
-        thread_unblock(t);
+        ticks=ticks+1;   // this will help in incremenitig=ng the ticks cu=ount
+                thread_tick();   // this cokmmand will call the tick
+      while (!list_empty(&sleeping_list)) {
+            struct thread *t = list_entry(list_front(&sleeping_list), struct thread, elem);
+                    if (t->wakeup_time > ticks) break; // when u think its not time wake up then we need to stop
+                            list_pop_front(&sleeping_list); // this will help in remobing the list
+                                thread_unblock(t); // unblocking the threads
     }
 }
 
@@ -275,3 +255,10 @@ real_time_delay (int64_t num, int32_t denom)
   ASSERT (denom % 1000 == 0);
   busy_wait (loops_per_tick * num / 1000 * TIMER_FREQ / (denom / 1000)); 
 }
+
+bool wakeup_time_comparator(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+                        struct thread *t1 = list_entry(a, struct thread, elem);//Struct for thethread 1
+        struct thread *t2 = list_entry(b, struct thread, elem);//struct for the threadd 2
+                return t1->wakeup_time < t2->wakeup_time;//returening the value 
+}
+
