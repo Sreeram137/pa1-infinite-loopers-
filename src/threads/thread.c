@@ -16,7 +16,7 @@
 #endif
 
 /* Random value for struct thread's `magic' member.
-   Used to detect stack overflow. See the big comment at the top
+   Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
 
@@ -24,7 +24,7 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
-/* List of all processes. Processes are added to this list
+/* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
@@ -71,8 +71,12 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
+/* Offset of `stack' member within `struct thread'.
+   Used by switch.S, which can't figure it out on its own. */
+uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
 /* Initializes the threading system by transforming the code
-   that's currently running into a thread. This can't work in
+   that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
    was careful to put the bottom of the stack at a page boundary.
 
@@ -149,14 +153,14 @@ thread_print_stats (void)
 
 /* Creates a new kernel thread named NAME with the given initial
    PRIORITY, which executes FUNCTION passing AUX as the argument,
-   and adds it to the ready queue. Returns the thread identifier
+   and adds it to the ready queue.  Returns the thread identifier
    for the new thread, or TID_ERROR if creation fails.
 
    If thread_start() has been called, then the new thread may be
-   scheduled before thread_create() returns. It could even exit
-   before thread_create() returns. Contrariwise, the original
+   scheduled before thread_create() returns.  It could even exit
+   before thread_create() returns.  Contrariwise, the original
    thread may run for any amount of time before the new thread is
-   scheduled. Use a semaphore or some other form of
+   scheduled.  Use a semaphore or some other form of
    synchronization if you need to ensure ordering.
 
    The code provided sets the new thread's `priority' member to
@@ -204,10 +208,10 @@ thread_create (const char *name, int priority,
   return tid;
 }
 
-/* Puts the current thread to sleep. It will not be scheduled
+/* Puts the current thread to sleep.  It will not be scheduled
    again until awoken by thread_unblock().
 
-   This function must be called with interrupts turned off. It
+   This function must be called with interrupts turned off.  It
    is usually a better idea to use one of the synchronization
    primitives in synch.h. */
 void
@@ -221,10 +225,10 @@ thread_block (void)
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
-   This is an error if T is not blocked. (Use thread_yield() to
+   This is an error if T is not blocked.  (Use thread_yield() to
    make the running thread ready.)
 
-   This function does not preempt the running thread. This can
+   This function does not preempt the running thread.  This can
    be important: if the caller had disabled interrupts itself,
    it may expect that it can atomically unblock a thread and
    update other data. */
@@ -276,7 +280,7 @@ thread_current (void)
   
   /* Make sure T is really a thread.
      If either of these assertions fire, then your thread may
-     have overflowed its stack. Each thread has less than 4 kB
+     have overflowed its stack.  Each thread has less than 4 kB
      of stack, so a few big automatic arrays or moderate
      recursion can cause stack overflow. */
   ASSERT (is_thread (t));
@@ -292,7 +296,7 @@ thread_tid (void)
   return thread_current ()->tid;
 }
 
-/* Deschedules the current thread and destroys it. Never
+/* Deschedules the current thread and destroys it.  Never
    returns to the caller. */
 void
 thread_exit (void) 
@@ -304,7 +308,7 @@ thread_exit (void)
 #endif
 
   /* Remove thread from all threads list, set our status to dying,
-     and schedule another process. That process will destroy us
+     and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
   intr_disable ();
   list_remove (&thread_current()->allelem);
@@ -313,7 +317,7 @@ thread_exit (void)
   NOT_REACHED ();
 }
 
-/* Yields the CPU. The current thread is not put to sleep and
+/* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
 
 /* Inserts thread `t` into `ready_list` while maintaining priority order */
@@ -409,14 +413,14 @@ thread_get_recent_cpu (void)
   return 0;
 }
 
-/* Idle thread. Executes when no other thread is ready to run.
+/* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by
-   thread_start(). It will be scheduled once initially, at which
+   thread_start().  It will be scheduled once initially, at which
    point it initializes idle_thread, "up"s the semaphore passed
    to it to enable thread_start() to continue, and immediately
-   blocks. After that, the idle thread never appears in the
-   ready list. It is returned by next_thread_to_run() as a
+   blocks.  After that, the idle thread never appears in the
+   ready list.  It is returned by next_thread_to_run() as a
    special case when the ready list is empty. */
 static void
 idle (void *idle_started_ UNUSED) 
@@ -435,7 +439,7 @@ idle (void *idle_started_ UNUSED)
 
          The `sti' instruction disables interrupts until the
          completion of the next instruction, so these two
-         instructions are executed atomically. This atomicity is
+         instructions are executed atomically.  This atomicity is
          important; otherwise, an interrupt could be handled
          between re-enabling interrupts and waiting for the next
          one to occur, wasting as much as one clock tick worth of
@@ -465,7 +469,7 @@ running_thread (void)
   uint32_t *esp;
 
   /* Copy the CPU's stack pointer into `esp', and then round that
-     down to the start of a page. Because `struct thread' is
+     down to the start of a page.  Because `struct thread' is
      always at the beginning of a page and the stack pointer is
      somewhere in the middle, this locates the current thread. */
   asm ("mov %%esp, %0" : "=g" (esp));
@@ -515,10 +519,10 @@ alloc_frame (struct thread *t, size_t size)
   return t->stack;
 }
 
-/* Chooses and returns the next thread to be scheduled. Should
+/* Chooses and returns the next thread to be scheduled.  Should
    return a thread from the run queue, unless the run queue is
-   empty. (If the running thread can continue running, then it
-   will be in the run queue.) If the run queue is empty, return
+   empty.  (If the running thread can continue running, then it
+   will be in the run queue.)  If the run queue is empty, return
    idle_thread. */
 static struct thread *next_thread_to_run(void) {
     if (list_empty(&ready_list))
@@ -543,13 +547,13 @@ static struct thread *next_thread_to_run(void) {
 
    At this function's invocation, we just switched from thread
    PREV, the new thread is already running, and interrupts are
-   still disabled. This function is normally invoked by
+   still disabled.  This function is normally invoked by
    thread_schedule() as its final action before returning, but
    the first time a thread is scheduled it is called by
    switch_entry() (see switch.S).
 
    It's not safe to call printf() until the thread switch is
-   complete. In practice that means that printf()s should be
+   complete.  In practice that means that printf()s should be
    added at the end of the function.
 
    After this function and its caller returns, the thread switch
@@ -572,9 +576,12 @@ thread_schedule_tail (struct thread *prev)
   process_activate ();
 #endif
 
-}
-
   /* If the thread we switched from is dying, destroy its struct
      thread. This must happen late so that thread_exit() doesn't
-     pull out the rug under itself. (We don't free
-     initial_thread because */
+     pull out the rug under itself. (We don't free initial_thread because its memory was not obtained via palloc().) */
+  if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread) 
+    {
+      ASSERT (prev != cur);
+      palloc_free_page (prev);
+    }
+}
