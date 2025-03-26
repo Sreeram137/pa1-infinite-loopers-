@@ -250,6 +250,12 @@ void thread_unblock(struct thread *t) {
 
     t->status = THREAD_READY;
 
+    /* Check if priority donation is needed */
+    if (t->priority > thread_current()->priority) {
+        thread_current()->donated_priority = t->priority;
+        thread_current()->priority = t->priority;
+    }
+
     /* If the newly unblocked thread has a higher priority, yield */
     if (thread_current() != idle_thread && t->priority > thread_current()->priority) {
         thread_yield();
@@ -368,11 +374,17 @@ thread_foreach (thread_action_func *func, void *aux)
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
-void thread_set_priority (int new_priority) 
-{
-  thread_current ()->priority = new_priority;
-  thread_yield();
+void thread_set_priority(int new_priority) {
+    struct thread *cur = thread_current();
+    cur->priority = new_priority;
+
+    if (cur->donated_priority > new_priority) {
+        cur->priority = cur->donated_priority;
+    }
+
+    thread_yield();
 }
+
 
 
 /* Returns the current thread's priority. */
