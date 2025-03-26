@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -60,7 +61,6 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 bool thread_mlfqs;
 
 static void kernel_thread (thread_func *, void *aux);
-
 static void idle (void *aux UNUSED);
 static struct thread *running_thread (void);
 static struct thread *next_thread_to_run (void);
@@ -349,7 +349,6 @@ void thread_yield(void) {
 }
 
 
-
 /* Invoke function 'func' on all threads, passing along 'aux'.
    This function must be called with interrupts off. */
 void
@@ -543,7 +542,6 @@ static struct thread *next_thread_to_run(void) {
 }
 
 
-
 /* Completes a thread switch by activating the new thread's page
    tables, and, if the previous thread is dying, destroying it.
 
@@ -556,80 +554,3 @@ static struct thread *next_thread_to_run(void) {
 
    It's not safe to call printf() until the thread switch is
    complete.  In practice that means that printf()s should be
-   added at the end of the function.
-
-   After this function and its caller returns, the thread switch
-   is complete. */
-void
-thread_schedule_tail (struct thread *prev)
-{
-  struct thread *cur = running_thread ();
-  
-  ASSERT (intr_get_level () == INTR_OFF);
-
-  /* Mark us as running. */
-  cur->status = THREAD_RUNNING;
-
-  /* Start new time slice. */
-  thread_ticks = 0;
-
-#ifdef USERPROG
-  /* Activate the new address space. */
-  process_activate ();
-#endif
-
-  /* If the thread we switched from is dying, destroy its struct
-     thread.  This must happen late so that thread_exit() doesn't
-     pull out the rug under itself.  (We don't free
-     initial_thread because its memory was not obtained via
-     palloc().) */
-  if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread) 
-    {
-      ASSERT (prev != cur);
-      palloc_free_page (prev);
-    }
-}
-
-/* Schedules a new process.  At entry, interrupts must be off and
-   the running process's state must have been changed from
-   running to some other state.  This function finds another
-   thread to run and switches to it.
-
-   It's not safe to call printf() until thread_schedule_tail()
-   has completed. */
-
-static void schedule(void) {
-    struct thread *cur = running_thread();
-    struct thread *next = next_thread_to_run();
-    struct thread *prev = NULL;
-
-    ASSERT(intr_get_level() == INTR_OFF);
-    ASSERT(cur->status != THREAD_RUNNING);
-    ASSERT(is_thread(next));
-
-    /* If the current thread is not the highest priority, switch */
-    if (cur != next) {
-        prev = switch_threads(cur, next);
-    }
-
-    thread_schedule_tail(prev);
-}
-
-
-/* Returns a tid to use for a new thread. */
-static tid_t
-allocate_tid (void) 
-{
-  static tid_t next_tid = 1;
-  tid_t tid;
-
-  lock_acquire (&tid_lock);
-  tid = next_tid++;
-  lock_release (&tid_lock);
-
-  return tid;
-}
-
-/* Offset of `stack' member within `struct thread'.
-   Used by switch.S, which can't figure it out on its own. */
-uint32_t thread_stack_ofs = offsetof (struct thread, stack);
