@@ -119,24 +119,22 @@ thread_start (void)
 
 /* Called by the timer interrupt handler at each timer tick.
    Thus, this function runs in an external interrupt context. */
-void
-thread_tick (void) 
-{
-  struct thread *t = thread_current ();
+void thread_tick(void) {
+    struct thread *t = thread_current();
 
-  /* Update statistics. */
-  if (t == idle_thread)
-    idle_ticks++;
-#ifdef USERPROG
-  else if (t->pagedir != NULL)
-    user_ticks++;
-#endif
-  else
-    kernel_ticks++;
+    if (++thread_ticks >= TIME_SLICE) {
+        intr_yield_on_return();
+    }
 
-  /* Enforce preemption. */
-  if (++thread_ticks >= TIME_SLICE)
-    intr_yield_on_return ();
+    if (thread_mlfqs) {
+        /* MLFQS handling logic */
+        if (t != idle_thread) {
+            t->recent_cpu = fix_add(t->recent_cpu, fix_int(1));
+            if (t->recent_cpu.f / FIX_F >= 4) { // adjust priority based on recent CPU usage
+                thread_set_priority(t->priority - 1);
+            }
+        }
+    }
 }
 
 /* Prints thread statistics. */
@@ -531,16 +529,22 @@ alloc_frame (struct thread *t, size_t size)
   return t->stack;
 }
 
+
+
+void mlfqs_adjust_priority(struct thread *t) {
+    if (t->recent_cpu.f / FIX_F < 4) {
+        t->priority = PRI_MAX;
+    } else {
+        t->priority = PRI_DEFAULT;
+    }
+}
+
 /* Chooses and returns the next thread to be scheduled.  Should
    return a thread from the run queue, unless the run queue is
    empty.  (If the running thread can continue running, then it
    will be in the run queue.)  If the run queue is empty, return
    idle_thread. */
-static struct thread *next_thread_to_run(void) {
-    if (list_empty(&ready_list))
-        return idle_thread;
-
-    /* Find and remove the highest-priority thread */
+struct thread *next_thread_to_run(void) {
     struct list_elem *max_elem = list_begin(&ready_list);
     for (struct list_elem *e = list_next(max_elem); e != list_end(&ready_list); e = list_next(e)) {
         struct thread *temp = list_entry(e, struct thread, elem);
@@ -553,7 +557,6 @@ static struct thread *next_thread_to_run(void) {
     list_remove(max_elem);
     return list_entry(max_elem, struct thread, elem);
 }
-
 
 
 /* Completes a thread switch by activating the new thread's page
