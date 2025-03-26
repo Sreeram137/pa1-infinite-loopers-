@@ -553,4 +553,4 @@ static struct thread *next_thread_to_run(void) {
    switch_entry() (see switch.S).
 
    It's not safe to call printf() until the thread switch is
-   complete.  In practice that means that printf()s should be
+   complete.  In practice that means that printf()s should be */
