@@ -88,13 +88,8 @@ struct thread
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
-    int base_priority;                  /* Base priority for priority donation. */
     struct list_elem allelem;           /* List element for all threads list. */
-
-    /* Priority donation */
-    struct list locks;                  /* List of locks held. */
-    int64_t wakeup_time;                /* Wakeup time for sleeping threads. */
-
+    int64_t wakeup_time;
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
@@ -142,17 +137,5 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
-
-/* Priority donation functions. */
-void donate_priority(struct thread *t, int new_priority);
-void reset_priority(struct thread *t);
-void update_priority(struct thread *t);
-
-/* MLFQS functions. */
-void mlfqs_update_priority(struct thread *t);
-void mlfqs_update_recent_cpu(struct thread *t);
-void mlfqs_update_load_avg(void);
-void mlfqs_increment_recent_cpu(void);
-void mlfqs_recalculate(void);
 
 #endif /* threads/thread.h */
