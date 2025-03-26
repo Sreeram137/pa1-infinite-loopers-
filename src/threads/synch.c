@@ -207,6 +207,7 @@ void lock_acquire(struct lock *lock) {
 }
 
 
+
 /* Tries to acquires LOCK and returns true if successful or false
    on failure.  The lock must not already be held by the current
    thread.
@@ -234,14 +235,14 @@ lock_try_acquire (struct lock *lock)
    handler. */
 void lock_release(struct lock *lock) {
     ASSERT(lock != NULL);
-    ASSERT(lock_held_by_current_thread(lock));
+    ASSERT(lock_held_by_current_thread(lock));  // This ensures only the thread holding the lock can release it
 
     /* Reset the priority of the thread that held the lock */
     struct thread *cur = thread_current();
-
+    
     /* Restore the base priority and reset donated priority */
     cur->priority = cur->base_priority;
-    cur->donated_priority = 0; // Reset donated priority
+    cur->donated_priority = 0;  // Reset donated priority
 
     /* Release the lock */
     lock->holder = NULL;
