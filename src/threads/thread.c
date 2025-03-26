@@ -71,10 +71,6 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
-/* Offset of `stack' member within `struct thread'.
-   Used by switch.S, which can't figure it out on its own. */
-uint32_t thread_stack_ofs = offsetof (struct thread, stack);
-
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -343,6 +339,7 @@ void thread_yield(void) {
     old_level = intr_disable();
 
     if (cur != idle_thread) {
+
         insert_ready_list(cur);
     }
 
@@ -350,6 +347,8 @@ void thread_yield(void) {
     schedule();
     intr_set_level(old_level);
 }
+
+
 
 /* Invoke function 'func' on all threads, passing along 'aux'.
    This function must be called with interrupts off. */
@@ -374,6 +373,7 @@ void thread_set_priority (int new_priority)
   thread_current ()->priority = new_priority;
   thread_yield();
 }
+
 
 /* Returns the current thread's priority. */
 int
@@ -542,6 +542,8 @@ static struct thread *next_thread_to_run(void) {
     return list_entry(max_elem, struct thread, elem);
 }
 
+
+
 /* Completes a thread switch by activating the new thread's page
    tables, and, if the previous thread is dying, destroying it.
 
@@ -577,11 +579,57 @@ thread_schedule_tail (struct thread *prev)
 #endif
 
   /* If the thread we switched from is dying, destroy its struct
-     thread. This must happen late so that thread_exit() doesn't
-     pull out the rug under itself. (We don't free initial_thread because its memory was not obtained via palloc().) */
+     thread.  This must happen late so that thread_exit() doesn't
+     pull out the rug under itself.  (We don't free
+     initial_thread because its memory was not obtained via
+     palloc().) */
   if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread) 
     {
       ASSERT (prev != cur);
       palloc_free_page (prev);
     }
 }
+
+/* Schedules a new process.  At entry, interrupts must be off and
+   the running process's state must have been changed from
+   running to some other state.  This function finds another
+   thread to run and switches to it.
+
+   It's not safe to call printf() until thread_schedule_tail()
+   has completed. */
+
+static void schedule(void) {
+    struct thread *cur = running_thread();
+    struct thread *next = next_thread_to_run();
+    struct thread *prev = NULL;
+
+    ASSERT(intr_get_level() == INTR_OFF);
+    ASSERT(cur->status != THREAD_RUNNING);
+    ASSERT(is_thread(next));
+
+    /* If the current thread is not the highest priority, switch */
+    if (cur != next) {
+        prev = switch_threads(cur, next);
+    }
+
+    thread_schedule_tail(prev);
+}
+
+
+/* Returns a tid to use for a new thread. */
+static tid_t
+allocate_tid (void) 
+{
+  static tid_t next_tid = 1;
+  tid_t tid;
+
+  lock_acquire (&tid_lock);
+  tid = next_tid++;
+  lock_release (&tid_lock);
+
+  return tid;
+}
+
+/* Offset of `stack' member within `struct thread'.
+   Used by switch.S, which can't figure it out on its own. */
+uint32_t thread_stack_ofs = offsetof (struct thread, stack);
