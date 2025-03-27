@@ -68,6 +68,7 @@ sema_down (struct semaphore *sema)
   old_level = intr_disable ();
   while (sema->value == 0) 
     {
+
       list_push_back (&sema->waiters, &thread_current ()->elem);
       thread_block ();
     }
@@ -113,11 +114,16 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
-  if (!list_empty (&sema->waiters)) 
+  if (!list_empty (&sema->waiters))
+  {
+    list_sort (&sema->waiters, cmp_priority, NULL);
     thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
+  }
   sema->value++;
   intr_set_level (old_level);
+
+  thread_yield();
 }
 
 static void sema_test_helper (void *sema_);
@@ -196,8 +202,39 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
+  enum intr_level old_level = intr_disable ();
+
+  if(!thread_mlfqs)
+  {
+    if(lock->holder)
+    {
+      thread_current()->locker = lock->holder;
+
+      list_push_front(&lock->holder->pot_donors,&thread_current()->donorelem);
+
+      thread_current()->blocked = lock;
+
+      struct thread *temp = thread_current();
+
+
+      while(temp->locker!=NULL)
+      {
+        if(temp->priority > temp->locker->priority)
+        {
+          temp->locker->priority = temp->priority;
+          temp = temp->locker;
+        }
+
+      }
+    }
+    else
+      thread_current()->locker = NULL;
+  }
+
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
+
+  intr_set_level (old_level);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -217,6 +254,28 @@ lock_try_acquire (struct lock *lock)
   success = sema_try_down (&lock->semaphore);
   if (success)
     lock->holder = thread_current ();
+  else
+  {
+    thread_current()->locker = lock->holder;
+
+    list_push_front(&lock->holder->pot_donors,&thread_current()->donorelem);
+
+    thread_current()->blocked = lock;
+
+    struct thread *temp = thread_current();
+
+
+    while(temp->locker!=NULL)
+    {
+      if(temp->priority > temp->locker->priority)
+      {
+        temp->locker->priority = temp->priority;
+        temp = temp->locker;
+      }
+
+    }
+
+  }
   return success;
 }
 
@@ -231,8 +290,51 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
+  enum intr_level old_level = intr_disable ();
+
   lock->holder = NULL;
+
   sema_up (&lock->semaphore);
+  if(!thread_mlfqs)
+  {
+    if(list_empty(&thread_current()->pot_donors))
+      thread_set_priority(thread_current()->basepriority);
+    else
+    {
+      struct list_elem *e;
+
+      for (e = list_begin (&thread_current()->pot_donors); e != list_end (&thread_current()->pot_donors);
+           e = list_next (e))
+      {
+
+        struct thread *f = list_entry (e, struct thread, donorelem);
+        if(f->blocked == lock)
+        {
+          list_remove(e);
+          f->blocked = NULL;
+
+        }
+      }
+
+      if(!list_empty(&thread_current()->pot_donors))
+      {
+        struct list_elem *max_donor = list_max(&thread_current()->pot_donors, cmp_priority, NULL);
+        struct thread *max_donor_thread = list_entry(max_donor, struct thread, donorelem);
+
+        if(thread_current()->basepriority > max_donor_thread->priority)
+          thread_set_priority(thread_current()->basepriority);
+        else
+        {
+          thread_current()->priority = max_donor_thread->priority;
+          thread_yield();
+        }
+      }
+      else
+        thread_set_priority(thread_current()->basepriority);
+    }
+  }
+  
+  intr_set_level (old_level);
 }
 
 /* Returns true if the current thread holds LOCK, false
@@ -317,8 +419,11 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   ASSERT (lock_held_by_current_thread (lock));
 
   if (!list_empty (&cond->waiters)) 
+  {
+    list_sort (&cond->waiters, cmp_cond_priority, NULL);
     sema_up (&list_entry (list_pop_front (&cond->waiters),
                           struct semaphore_elem, elem)->semaphore);
+  }
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by
@@ -337,140 +442,13 @@ cond_broadcast (struct condition *cond, struct lock *lock)
     cond_signal (cond, lock);
 }
 
-void rwsema_init(struct rw_semaphore* rwsema)
+bool cmp_cond_priority(struct list_elem *first, struct list_elem *second, void *aux)
 {
-  rwsema->rcount = 0;
-  list_init(&rwsema->read_waiters);
-  list_init(&rwsema->write_waiters);
-  rwsema->writer = NULL;
-	return;
-}
-void down_write(struct rw_semaphore* rwsema)
-{
-  // Grant exclusive access permission or the caller is blocked.
-  // If there are no writer and reader, grant the exclusive access permission.
-  // Otherwise, the caller should be registered to the wait list for writer.
-  if (rwsema->writer == NULL && rwsema->rcount == 0)
-    {
-      rwsema->writer = thread_current();
-    }
-  else
-    {
-      enum intr_level old_level = intr_disable();
-      list_push_back(&rwsema->write_waiters, &thread_current()->elem);
-      thread_block();
-      intr_set_level(old_level);
-    }
-	return;
-}
-void down_read(struct rw_semaphore* rwsema)
-{
-  // Grant shared access permission or the caller is blocked.
-  // If there are writer, grant the shared access permission.
-  // Otherwise, the caller should be registered to the wait list for reader.
-  if (rwsema->writer != NULL)
-    {
-      enum intr_level old_level = intr_disable();
-      list_push_back(&rwsema->read_waiters, &thread_current()->elem);
-      thread_block();
-      intr_set_level(old_level);
-    }
-  else
-    {
-      rwsema->rcount++;
-    }
-	return;
-}
-void up_write(struct rw_semaphore* rwsema)
-{
-  // Release the exclusive access permission.
-  // If there are blocked writer. Wake up and grant the exclusive access permission.
-  // If there are no blocked writer and blocked reader, wake up the all the reader and grant the shared access permission.
-  if (!list_empty(&rwsema->write_waiters))
-    {
-      struct thread* t = list_entry(list_pop_front(&rwsema->write_waiters), struct thread, elem);
-      rwsema->writer = t;
-      thread_unblock(t);
-    }
-  else
-    {
-      rwsema->writer = NULL;
-      while (!list_empty(&rwsema->read_waiters))
-        {
-          struct thread* t = list_entry(list_pop_front(&rwsema->read_waiters), struct thread, elem);
-          rwsema->rcount++;
-          thread_unblock(t);
-        }
-    }
-	return;
-}
-void up_read(struct rw_semaphore* rwsema)
-{
-  // Release the shared access permission.
-  // If the thread is the only reader who have the shared permission and there are blocked writer, wake up it and grant the exclusive access permission.
-  rwsema->rcount--;
-  if (rwsema->rcount == 0 && !list_empty(&rwsema->write_waiters))
-    {
-      struct thread* t = list_entry(list_pop_front(&rwsema->write_waiters), struct thread, elem);
-      rwsema->writer = t;
-      thread_unblock(t);
-    }
-	return;
-}
+  struct semaphore_elem *fsem = list_entry (first, struct semaphore_elem, elem);
+  struct semaphore_elem *ssem = list_entry (second, struct semaphore_elem, elem);
+ 
 
-void seqlock_init(struct seqlock* seqlock)
-{
-  seqlock->sequence = 0;
-  seqlock->writer = NULL;
-	return;
-}
-int64_t read_seqlock_begin(struct seqlock* seqlock)
-{
-  // Return the current sequence in an atomic manner using interupt.
-  int64_t ret;
-  enum intr_level old_level;
-  old_level = intr_disable ();
-  ret = seqlock->sequence;
-  intr_set_level(old_level);
-  return ret;
-}
-bool read_seqretry(struct seqlock* seqlock, int64_t sequence)
-{
-  // Compare the stored sequence and the current sequence in an atomic manner.
-  // Return true if the sequence number has changed or is odd
-  int64_t current_sequence;
-  enum intr_level old_level;
-  old_level = intr_disable ();
-  current_sequence = seqlock->sequence;
-  intr_set_level(old_level);
-	return current_sequence != sequence || current_sequence & 1;
-}
-void write_seqlock(struct seqlock* seqlock)
-{
-  // Acquire the exclusive access permission.
-  // If there are writer accessing the data structure, block.
-  // If there are no writer accessing the data structure, grant the exclusive access permission.
-  if (seqlock->writer != NULL)
-    {
-      enum intr_level old_level = intr_disable();
-      thread_block();
-      intr_set_level(old_level);
-    }
-  else
-    {
-      enum intr_level old_level = intr_disable ();
-      seqlock->sequence++;
-      seqlock->writer = thread_current();
-      intr_set_level(old_level);
-    }
-	return;
-}
-void write_sequnlock(struct seqlock* seqlock)
-{
-  // Release the exclusive access permission
-  enum intr_level old_level = intr_disable ();
-  seqlock->sequence++;
-  seqlock->writer = NULL;
-  intr_set_level(old_level);
-	return;
+
+  return list_entry(list_front(&fsem->semaphore.waiters), struct thread, elem)->priority > list_entry (list_front(&ssem->semaphore.waiters), struct thread, elem)->priority;
+
 }
