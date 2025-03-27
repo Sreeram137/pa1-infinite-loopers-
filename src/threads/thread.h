@@ -1,11 +1,10 @@
 #ifndef THREADS_THREAD_H
 #define THREADS_THREAD_H
-#define USERPROG
 
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
-#include "threads/synch.h"
+#include <kernel/list.h>
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -25,13 +24,6 @@ typedef int tid_t;
 #define PRI_MIN 0                       /* Lowest priority. */
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
-
-struct process_descriptor
-{
-  tid_t pid;
-  int exit_status;
-  struct list_elem elem;
-};
 
 /* A kernel thread or user process.
 
@@ -102,22 +94,25 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
+    struct list_elem donorelem;
+
+    int64_t waketick;
+
+    int basepriority;
+
+    struct thread *locker;
+
+    struct list pot_donors;
+
+    struct lock *blocked;
+
+    int nice;
+
+    int recent_cpu;
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
-    struct thread *parent;              /* Parent thread. */
-    struct list child_list;             /* List of child threads. */
-    struct list_elem child_elem;        /* List element for child threads. */
-    struct list process_list;
-    struct semaphore wait_sema;         /* Semaphore for waiting. */
-    int exit_status;                    /* Exit status. */
-    struct semaphore load_sema;         /* Semaphore for loading. */
-    struct semaphore exit_sema;        /* Semaphore for exiting. */
-    bool load_success;                  /* Load success. */
-    struct file **fdt;                  /* File descriptor table. */
-    int next_fd;                        /* Next file descriptor. */
-    struct file *exec_file;             /* Executable file. */
-
 #endif
 
     /* Owned by thread.c. */
@@ -128,7 +123,7 @@ struct thread
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 extern bool thread_mlfqs;
-extern bool thread_report_latency;
+int load_avg;
 
 void thread_init (void);
 void thread_start (void);
@@ -161,8 +156,8 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-#ifdef USERPROG
-struct thread *get_thread_by_tid (tid_t);
-#endif
+bool cmp_waketick(struct list_elem *first, struct list_elem *second, void *aux);
+
+bool cmp_priority(struct list_elem *first, struct list_elem *second, void *aux);
 
 #endif /* threads/thread.h */
