@@ -538,7 +538,7 @@ thread_get_recent_cpu (void)
      	return FP_ROUND (FP_MULT_MIX (thread_current()->recent_cpu, 100));
 }
 
- 	/ *Modified part of codde    */
+ 	/*Modified part of codde    */
 		 /* Recent CPU++; */
 /* Update the thread's priority based on recent_cpu and nice value. */
 void
