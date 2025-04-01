@@ -32,12 +32,13 @@ static void real_time_delay (int64_t num, int32_t denom);
 
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
-void
-timer_init (void) 
-{
-  pit_configure_channel (0, 2, TIMER_FREQ);
-  intr_register_ext (0x20, timer_interrupt, "8254 Timer");
-}
+			/*Modified part of code */
+			void
+			timer_init (void) 
+	{
+ 		 pit_configure_channel (0, 2, TIMER_FREQ);
+ 		 intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+	}
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
 void
@@ -86,30 +87,30 @@ timer_elapsed (int64_t then)
 
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
-void
-timer_sleep (int64_t ticks) 
+
+	/*Modified part of code */
+	void
+				timer_sleep(int64_t ticks) 
 {
-  /*
-  int64_t start = timer_ticks();
-  ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed(start) < ticks)
-    thread_yield();
-  */
+    /* Ignore negative or zero ticks — no need to block. */
+    if (ticks <= 0)
+        return;
 
-  /* Solution Code */
+    ASSERT(intr_get_level() == INTR_ON);
 
-  /* For alarm-negative && alarm-zero */
-  if (ticks <= 0) return;
+    /* Disable interrupts before modifying thread state. */
+    enum intr_level old_level = intr_disable();
 
-  ASSERT (intr_get_level () == INTR_ON);
-  enum intr_level old_level = intr_disable();
+    /* Set the number of ticks the current thread should sleep. */
+    thread_current()->ticks_blocked = ticks;
 
-  /* Blocks current thread for ticks */
-  thread_current()->ticks_blocked = ticks;
-  thread_block();
+    /* Block the current thread until it's unblocked by the timer tick handler. */
+    thread_block();
 
-  intr_set_level(old_level);
+    /* Restore the previous interrupt level. */
+    intr_set_level(old_level);
 }
+
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
    turned on. */
@@ -183,24 +184,36 @@ timer_print_stats (void)
 
 /* Timer interrupt handler. */
 static void
-timer_interrupt (struct intr_frame *args UNUSED)
+timer_interrupt(struct intr_frame *args UNUSED)
 {
-  /* Solution Code */
-  thread_foreach(checkInvoke, NULL);
+    /* Wake up threads whose sleep duration has expired. */
+    thread_foreach(checkInvoke, NULL);
 
-  ticks++;
-  thread_tick ();
+    /* Increment system tick count. */
+    ticks++;
 
-  /* Solution Code */
-  if (thread_mlfqs)
-  {
-    mlfqs_inc_recent_cpu();
-	if (ticks % TIMER_FREQ == 0)
-	  mlfqs_update_load_avg_and_recent_cpu();
-	else if (ticks % 4 == 0)
-	  mlfqs_update_priority(thread_current());
-  }
+    /* Update statistics and potentially preempt current thread. */
+    thread_tick();
+
+    /* MLFQS-specific updates. */
+    if (thread_mlfqs)
+    {
+        /* Increment recent_cpu for the running thread. */
+        mlfqs_inc_recent_cpu();
+
+        /* Every second, update load_avg and recent_cpu for all threads. */
+        if (ticks % TIMER_FREQ == 0)
+        {
+            mlfqs_update_load_avg_and_recent_cpu();
+        }
+        /* Every 4 ticks, update the running thread's priority. */
+        else if (ticks % 4 == 0)
+        {
+            mlfqs_update_priority(thread_current());
+        }
+    }
 }
+
 
 /* Returns true if LOOPS iterations waits for more than one timer
    tick, otherwise false. */
