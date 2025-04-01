@@ -92,13 +92,13 @@ struct thread
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
-    /* Solution Code */
-    int64_t ticks_blocked;              /* Ticks that the thread need to be blocked. */
-    int base_priority;                  /* Used to record thread's priority when it's not being donated. */
-    struct list locks_holding;          /* List of locks the thread is holding. */
-    struct lock *lock_waiting4;         /* The lock the thread is waiting for. */
-    int nice;                           /* Nice value. */
-    fixed_t recent_cpu;                 /* Recent CPU. */
+             /* Modified part of code    */
+       int64_t ticks_blocked;                        /* will the   Ticks that the thread need to be blocked. */
+          int base_priority; /*    will be  Used to record thread's priority when it's not being donated. */
+             struct list locks_holding;/*  will be the    List of locks the thread is holding. */
+                  struct lock *lock_waiting4;      /* will be The lock the thread is waiting for. */
+                   int nice; /*will be the   Nice value. */
+                fixed_t recent_cpu;/* this is the  Recent CPU. */
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
@@ -116,9 +116,8 @@ struct thread
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 extern bool thread_mlfqs;
-
-/* Solution Code */
-void checkInvoke(struct thread *t, void *aux UNUSED);
+                 /* Modified part of code e */
+     void checkInvoke(struct thread *t, void *aux UNUSED);
 
 void thread_init (void);
 void thread_start (void);
@@ -145,23 +144,26 @@ void thread_foreach (thread_action_func *, void *);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
-/* Solution Code */
-bool thread_cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
-void thread_donate_priority(struct thread *t);
-void thread_hold_lock(struct lock *lock);
-void thread_remove_lock(struct lock *lock);
+                  /*Modified part of code   */
+              bool thread_cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 bool lock_cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
-void thread_update_priority(struct thread *t);
+        void thread_update_priority(struct thread *t);
+                                          void thread_hold_lock(struct lock *lock);
+  void thread_donate_priority(struct thread *t);
+
+  void thread_remove_lock(struct lock *lock);
+
 
 int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-/* Solution Code */
-/* For mlfqs */
+       /* Modified part of code   */
+             /* this is For mlfqs */
+                void mlfqs_update_load_avg_and_recent_cpu();
 void mlfqs_inc_recent_cpu();
-void mlfqs_update_load_avg_and_recent_cpu();
+
 void mlfqs_update_priority();
 
 #endif /* threads/thread.h */
