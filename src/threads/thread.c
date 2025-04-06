@@ -418,14 +418,13 @@ thread_set_priority (int new_priority)
   else
     thread_current()->basepriority = new_priority;
 
-  if(!list_empty(&ready_list))
-  {
-    struct list_elem *front = list_front(&ready_list);
-    struct thread *fthread = list_entry (front, struct thread, elem);
-
-    if(fthread->priority > thread_current ()->priority)
-      thread_yield();
+  if (!list_empty(&ready_list)) {
+  struct thread *top_ready = list_entry(list_front(&ready_list), struct thread, elem);
+  
+  if (top_ready->priority > thread_current()->priority) {
+    thread_yield();
   }
+}
   intr_set_level (old_level);
 }
 
