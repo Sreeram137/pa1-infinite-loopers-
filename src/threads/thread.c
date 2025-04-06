@@ -11,7 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
-#include "fxpt.h"
+#include "fixedpoint.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
