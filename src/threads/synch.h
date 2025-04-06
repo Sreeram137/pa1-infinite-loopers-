@@ -16,16 +16,12 @@ void sema_down (struct semaphore *);
 bool sema_try_down (struct semaphore *);
 void sema_up (struct semaphore *);
 void sema_self_test (void);
+
 /* Lock. */
 struct lock 
   {
     struct thread *holder;      /* Thread holding lock (for debugging). */
     struct semaphore semaphore; /* Binary semaphore controlling access. */
-	
-
-			/*Modified part of code  */
-	    struct list_elem elem;   /* This iis the   list element which is store for the stored for priority donation. */
-                           int max_priority;                  /*  this is the   The maximum priority among the priorities of threads acquiring the lock. */
   };
 
 void lock_init (struct lock *);
@@ -45,11 +41,7 @@ void cond_wait (struct condition *, struct lock *);
 void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
 
-
-	/* 		Modified part of codee */
-bool cond_cmp_priority(const struct list_elem *, 
-const struct list_elem *, 
-void * UNUSED);
+bool cmp_cond_priority(struct list_elem *first, struct list_elem *second, void *aux);
 
 /* Optimization barrier.
 
