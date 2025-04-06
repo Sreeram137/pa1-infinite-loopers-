@@ -1,44 +1,74 @@
-#ifndef __THREAD_FIXED_POINT_H
-#define __THREAD_FIXED_POINT_H
 
-/* Definitions for fixed-point arithmetic used in thread scheduling. */
+#include <stdint.h>
 
-typedef int fixed_t;                    /* Define fixed-point type as integer. */
+#define F 16384
 
-#define FP_SHIFT_AMOUNT 16             /* Number of bits for fractional part. */
+int tofxpt(int a);
+int tointfloor(int a);
+int tointround(int a);
+int addin(int a, int b);
+int addfx(int a, int b);
+int subin(int a, int b);
+int subfx(int a, int b);
+int mulin(int a, int b);
+int mulfx(int a, int b);
+int divin(int a, int b);
+int divfx(int a, int b);
 
-/* Convert integer A to fixed-point representation. */
-#define FP_CONST(A) ((fixed_t)((A) << FP_SHIFT_AMOUNT))
+int tofxpt(int a)
+{
+	return a * F;
+}
 
-/* Add two fixed-point values A and B. */
-#define FP_ADD(A, B) ((A) + (B))
+int tointfloor(int a)
+{
+	return a / F;
+}
 
-/* Add fixed-point value A and integer B. */
-#define FP_ADD_MIX(A, B) ((A) + ((B) << FP_SHIFT_AMOUNT))
+int tointround(int a)
+{
+	if (a>=0)
+		return (a + F/2) / F;
+	else
+		return (a - F/2) / F;
+}
 
-/* Subtract fixed-point value B from A. */
-#define FP_SUB(A, B) ((A) - (B))
+int addin(int a, int b)
+{
+	return a + (b * F);
+}
 
-/* Subtract integer B from fixed-point value A. */
-#define FP_SUB_MIX(A, B) ((A) - ((B) << FP_SHIFT_AMOUNT))
+int addfx(int a, int b)
+{
+	return a + b;
+}
 
-/* Multiply fixed-point value A by integer B. */
-#define FP_MULT_MIX(A, B) ((A) * (B))
+int subin(int a, int b)
+{
+	return a - (b * F);
+}
 
-/* Divide fixed-point value A by integer B. */
-#define FP_DIV_MIX(A, B) ((A) / (B))
+int subfx(int a, int b)
+{
+	return a - b;
+}
 
-/* Multiply two fixed-point values A and B. */
-#define FP_MULT(A, B) ((fixed_t)(((int64_t)(A)) * (B) >> FP_SHIFT_AMOUNT))
+int mulin(int a, int b)
+{
+	return a * b;
+}
 
-/* Divide fixed-point value A by fixed-point value B. */
-#define FP_DIV(A, B) ((fixed_t)((((int64_t)(A)) << FP_SHIFT_AMOUNT) / (B)))
+int mulfx(int a, int b)
+{
+	return ((int64_t) a) * b / F;
+}
 
-/* Get integer part of fixed-point value A. */
-#define FP_INT_PART(A) ((A) >> FP_SHIFT_AMOUNT)
+int divin(int a, int b)
+{
+	return a / b;
+}
 
-/* Round fixed-point value A to nearest integer. */
-#define FP_ROUND(A) ((A) >= 0 ? (((A) + (1 << (FP_SHIFT_AMOUNT - 1))) >> FP_SHIFT_AMOUNT) \
-                              : (((A) - (1 << (FP_SHIFT_AMOUNT - 1))) >> FP_SHIFT_AMOUNT))
-
-#endif /* __THREAD_FIXED_POINT_H */
+int divfx(int a, int b)
+{
+	return ((int64_t) a) * F / b;
+}
