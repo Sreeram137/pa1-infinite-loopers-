@@ -1,4 +1,3 @@
-
 #include <stdint.h>
 
 #define F 16384
