@@ -149,7 +149,11 @@ thread_tick (void)
       struct list_elem *e;
       int temp, i=0;
 
-      load_avg = addfx(divin(mulin(load_avg, 59), 60), divin(tofxpt(list_size(&ready_list) + (strcmp(running_thread()->name,"idle")==0?0:1)), 60));
+      int ready_threads = list_size(&ready_list) + (strcmp(running_thread()->name, "idle") == 0 ? 0 : 1);
+int _load1 = divin(mulin(load_avg, 59), 60);
+int _load2 = divin(tofxpt(ready_threads), 60);
+load_avg = addfx(_load1, _load2);
+
 
       temp = divfx(mulin(load_avg, 2),addin(mulin(load_avg, 2), 1));
 
@@ -157,7 +161,8 @@ thread_tick (void)
          e = list_next (e))
       {
         struct thread *f = list_entry (e, struct thread, allelem);
-        f->recent_cpu = addin(mulfx(temp, f->recent_cpu),f->nice);
+        int weighted = mulfx(temp, f->recent_cpu);
+f->recent_cpu = addin(weighted, f->nice);
       }
     }
 
@@ -168,7 +173,9 @@ thread_tick (void)
          e = list_next (e))
       {
         struct thread *f = list_entry (e, struct thread, allelem);
-        f->priority = PRI_MAX - tointround(divin(f->recent_cpu,4)) - (f->nice * 2);
+        int _cpu = tointround(divin(f->recent_cpu, 4));
+int _nice = f->nice * 2;
+f->priority = PRI_MAX - _cpu - _nice;
       }
     }
   }
