@@ -159,6 +159,6 @@ int thread_get_load_avg (void);
 
 bool cmp_waketick(struct list_elem *first, struct list_elem *second, void *aux);
 
-bool cmp_priority(struct list_elem *first, struct list_elem *second, void *aux);
+bool cmp_priority(const struct list_elem *, const struct list_elem *, void *);
 
 #endif /* threads/thread.h */
