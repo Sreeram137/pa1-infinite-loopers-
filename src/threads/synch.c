@@ -206,13 +206,12 @@ lock_acquire (struct lock *lock)
 
   if(!thread_mlfqs)
   {
-    if(lock->holder)
-    {
-      thread_current()->locker = lock->holder;
+    if (lock->holder != NULL) {
+  struct thread *cur = thread_current();
+  cur->locker = lock->holder;
+  cur->blocked = lock;
+  list_push_front(&lock->holder->pot_donors, &cur->donorelem);
 
-      list_push_front(&lock->holder->pot_donors,&thread_current()->donorelem);
-
-      thread_current()->blocked = lock;
 
       struct thread *temp = thread_current();
 
