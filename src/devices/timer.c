@@ -7,7 +7,8 @@
 #include "threads/interrupt.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
-
+#include <kernel/list.h>
+  
 /* See [8254] for hardware details of the 8254 timer chip. */
 
 #if TIMER_FREQ < 19
@@ -19,6 +20,8 @@
 
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
+
+struct list sleep_list;
 
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */
@@ -32,13 +35,13 @@ static void real_time_delay (int64_t num, int32_t denom);
 
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
-			/*Modified part of code */
-			void
-			timer_init (void) 
-	{
- 		 pit_configure_channel (0, 2, TIMER_FREQ);
- 		 intr_register_ext (0x20, timer_interrupt, "8254 Timer");
-	}
+void
+timer_init (void) 
+{
+  pit_configure_channel (0, 2, TIMER_FREQ);
+  intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+  list_init (&sleep_list);
+}
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
 void
@@ -61,7 +64,7 @@ timer_calibrate (void)
   /* Refine the next 8 bits of loops_per_tick. */
   high_bit = loops_per_tick;
   for (test_bit = high_bit >> 1; test_bit != high_bit >> 10; test_bit >>= 1)
-    if (!too_many_loops (loops_per_tick | test_bit))
+    if (!too_many_loops (high_bit | test_bit))
       loops_per_tick |= test_bit;
 
   printf ("%'"PRIu64" loops/s.\n", (uint64_t) loops_per_tick * TIMER_FREQ);
@@ -87,30 +90,28 @@ timer_elapsed (int64_t then)
 
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
-
-	/*Modified part of code */
-	void
-				timer_sleep(int64_t ticks) 
+void
+timer_sleep (int64_t ticks) 
 {
-    /* Ignore negative or zero ticks — no need to block. */
-    if (ticks <= 0)
-        return;
 
-    ASSERT(intr_get_level() == INTR_ON);
+	struct thread* curthread;
+	enum intr_level curlevel;
 
-    /* Disable interrupts before modifying thread state. */
-    enum intr_level old_level = intr_disable();
+  ASSERT (intr_get_level () == INTR_ON);
 
-    /* Set the number of ticks the current thread should sleep. */
-    thread_current()->ticks_blocked = ticks;
+  curlevel = intr_disable();
 
-    /* Block the current thread until it's unblocked by the timer tick handler. */
-    thread_block();
+  curthread = thread_current();
 
-    /* Restore the previous interrupt level. */
-    intr_set_level(old_level);
+  curthread->waketick = timer_ticks() + ticks;
+
+  list_insert_ordered (&sleep_list, &curthread->elem, cmp_waketick, NULL);
+
+  thread_block();
+
+  intr_set_level(curlevel);
+
 }
-
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
    turned on. */
@@ -184,36 +185,27 @@ timer_print_stats (void)
 
 /* Timer interrupt handler. */
 static void
-timer_interrupt(struct intr_frame *args UNUSED)
+timer_interrupt (struct intr_frame *args UNUSED)
 {
-    /* Wake up threads whose sleep duration has expired. */
-    thread_foreach(checkInvoke, NULL);
+	struct list_elem *head;
+	struct thread *hthread;
 
-    /* Increment system tick count. */
-    ticks++;
+  ticks++;
+  thread_tick ();
 
-    /* Update statistics and potentially preempt current thread. */
-    thread_tick();
 
-    /* MLFQS-specific updates. */
-    if (thread_mlfqs)
-    {
-        /* Increment recent_cpu for the running thread. */
-        mlfqs_inc_recent_cpu();
+	while(!list_empty(&sleep_list))
+	{
+		head = list_front(&sleep_list);
+	  hthread = list_entry (head, struct thread, elem);
 
-        /* Every second, update load_avg and recent_cpu for all threads. */
-        if (ticks % TIMER_FREQ == 0)
-        {
-            mlfqs_update_load_avg_and_recent_cpu();
-        }
-        /* Every 4 ticks, update the running thread's priority. */
-        else if (ticks % 4 == 0)
-        {
-            mlfqs_update_priority(thread_current());
-        }
-    }
+	  	if(hthread->waketick > ticks )
+	  		break;
+
+	  	list_remove (head);
+	  	thread_unblock(hthread);
+	}
 }
-
 
 /* Returns true if LOOPS iterations waits for more than one timer
    tick, otherwise false. */
