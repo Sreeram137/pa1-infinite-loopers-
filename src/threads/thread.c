@@ -694,9 +694,7 @@ bool cmp_waketick(struct list_elem *first, struct list_elem *second, void *aux)
 
 bool cmp_priority(struct list_elem *first, struct list_elem *second, void *aux)
 {
-  struct thread *fthread = list_entry (first, struct thread, elem);
-  struct thread *sthread = list_entry (second, struct thread, elem);
-
-  return fthread->priority > sthread->priority;
-
+  struct thread *a = list_entry(first, struct thread, elem);
+struct thread *b = list_entry(second, struct thread, elem);
+return a->priority > b->priority;
 }
