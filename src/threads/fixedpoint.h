@@ -71,3 +71,5 @@ int divfx(int a, int b)
 {
 	return ((int64_t) a) * F / b;
 }
+
+#define MY_PRIORITY_UPDATE(_cpu, _nice) (PRI_MAX - tointround(divin((_cpu), 4)) - ((_nice) * 2))
