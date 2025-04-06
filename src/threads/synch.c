@@ -443,11 +443,11 @@ cond_broadcast (struct condition *cond, struct lock *lock)
 
 bool cmp_cond_priority(const struct list_elem *first, const struct list_elem *second, void *aux)
 {
-  struct semaphore_elem *fsem = list_entry (first, struct semaphore_elem, elem);
-  struct semaphore_elem *ssem = list_entry (second, struct semaphore_elem, elem);
- 
+  (void) aux; // suppress unused parameter warning
+  struct semaphore_elem *fsem = list_entry(first, struct semaphore_elem, elem);
+  struct semaphore_elem *ssem = list_entry(second, struct semaphore_elem, elem);
 
-
-  return list_entry(list_front(&fsem->semaphore.waiters), struct thread, elem)->priority > list_entry (list_front(&ssem->semaphore.waiters), struct thread, elem)->priority;
-
+  return list_entry(list_front(&fsem->semaphore.waiters), struct thread, elem)->priority >
+         list_entry(list_front(&ssem->semaphore.waiters), struct thread, elem)->priority;
 }
+
